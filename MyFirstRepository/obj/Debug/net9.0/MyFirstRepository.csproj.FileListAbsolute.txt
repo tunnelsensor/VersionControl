@@ -1,0 +1,14 @@
+C:\Users\s96960\OneDrive - Campus Sint-Ursula Lier\6AD\Aplicatie en data beheer (mr Gys)\Boek\VersionControl\MyFirstRepository\bin\Debug\net9.0\MyFirstRepository.exe
+C:\Users\s96960\OneDrive - Campus Sint-Ursula Lier\6AD\Aplicatie en data beheer (mr Gys)\Boek\VersionControl\MyFirstRepository\bin\Debug\net9.0\MyFirstRepository.deps.json
+C:\Users\s96960\OneDrive - Campus Sint-Ursula Lier\6AD\Aplicatie en data beheer (mr Gys)\Boek\VersionControl\MyFirstRepository\bin\Debug\net9.0\MyFirstRepository.runtimeconfig.json
+C:\Users\s96960\OneDrive - Campus Sint-Ursula Lier\6AD\Aplicatie en data beheer (mr Gys)\Boek\VersionControl\MyFirstRepository\bin\Debug\net9.0\MyFirstRepository.dll
+C:\Users\s96960\OneDrive - Campus Sint-Ursula Lier\6AD\Aplicatie en data beheer (mr Gys)\Boek\VersionControl\MyFirstRepository\bin\Debug\net9.0\MyFirstRepository.pdb
+C:\Users\s96960\OneDrive - Campus Sint-Ursula Lier\6AD\Aplicatie en data beheer (mr Gys)\Boek\VersionControl\MyFirstRepository\obj\Debug\net9.0\MyFirstRepository.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\s96960\OneDrive - Campus Sint-Ursula Lier\6AD\Aplicatie en data beheer (mr Gys)\Boek\VersionControl\MyFirstRepository\obj\Debug\net9.0\MyFirstRepository.AssemblyInfoInputs.cache
+C:\Users\s96960\OneDrive - Campus Sint-Ursula Lier\6AD\Aplicatie en data beheer (mr Gys)\Boek\VersionControl\MyFirstRepository\obj\Debug\net9.0\MyFirstRepository.AssemblyInfo.cs
+C:\Users\s96960\OneDrive - Campus Sint-Ursula Lier\6AD\Aplicatie en data beheer (mr Gys)\Boek\VersionControl\MyFirstRepository\obj\Debug\net9.0\MyFirstRepository.csproj.CoreCompileInputs.cache
+C:\Users\s96960\OneDrive - Campus Sint-Ursula Lier\6AD\Aplicatie en data beheer (mr Gys)\Boek\VersionControl\MyFirstRepository\obj\Debug\net9.0\MyFirstRepository.dll
+C:\Users\s96960\OneDrive - Campus Sint-Ursula Lier\6AD\Aplicatie en data beheer (mr Gys)\Boek\VersionControl\MyFirstRepository\obj\Debug\net9.0\refint\MyFirstRepository.dll
+C:\Users\s96960\OneDrive - Campus Sint-Ursula Lier\6AD\Aplicatie en data beheer (mr Gys)\Boek\VersionControl\MyFirstRepository\obj\Debug\net9.0\MyFirstRepository.pdb
+C:\Users\s96960\OneDrive - Campus Sint-Ursula Lier\6AD\Aplicatie en data beheer (mr Gys)\Boek\VersionControl\MyFirstRepository\obj\Debug\net9.0\MyFirstRepository.genruntimeconfig.cache
+C:\Users\s96960\OneDrive - Campus Sint-Ursula Lier\6AD\Aplicatie en data beheer (mr Gys)\Boek\VersionControl\MyFirstRepository\obj\Debug\net9.0\ref\MyFirstRepository.dll
