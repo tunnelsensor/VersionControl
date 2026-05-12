@@ -14,11 +14,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\s96960\\OneDrive - Campus Sint-Ursula Lier\\6AD\\Aplicatie en data beheer (mr Gys)\\Boek\\VersionControl\\MyFirstRepository\\MyFirstRepository.csproj",
+      "projectUniqueName": "C:\\Users\\s96960\\OneDrive - Campus Sint-Ursula Lier\\6AD\\Aplicatie en data beheer (mr Gys)\\Boek\\VersionControl\\MyFirstRepository\\MyFirstRepository\\MyFirstRepository.csproj",
       "projectName": "MyFirstRepository",
-      "projectPath": "C:\\Users\\s96960\\OneDrive - Campus Sint-Ursula Lier\\6AD\\Aplicatie en data beheer (mr Gys)\\Boek\\VersionControl\\MyFirstRepository\\MyFirstRepository.csproj",
+      "projectPath": "C:\\Users\\s96960\\OneDrive - Campus Sint-Ursula Lier\\6AD\\Aplicatie en data beheer (mr Gys)\\Boek\\VersionControl\\MyFirstRepository\\MyFirstRepository\\MyFirstRepository.csproj",
       "packagesPath": "C:\\Users\\s96960\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\s96960\\OneDrive - Campus Sint-Ursula Lier\\6AD\\Aplicatie en data beheer (mr Gys)\\Boek\\VersionControl\\MyFirstRepository\\obj\\",
+      "outputPath": "C:\\Users\\s96960\\OneDrive - Campus Sint-Ursula Lier\\6AD\\Aplicatie en data beheer (mr Gys)\\Boek\\VersionControl\\MyFirstRepository\\MyFirstRepository\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
