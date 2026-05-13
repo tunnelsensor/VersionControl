@@ -1,11 +1,12 @@
 ﻿// ============================================================
-//  ZOMBIE SURVIVAL - Een turn-based console game in C#
-//  Gemaakt voor beginners: elk onderdeel is uitgelegd met comments
+//  ZOMBIE SURVIVAL - VISUELE GAME MET RAYLIB-CS
+//  Omgezet van console naar grafisch venster
 // ============================================================
 
 using System;
 using System.Collections.Generic;
-using System.Threading;
+using System.Linq;
+using Raylib_cs;
 
 // ─────────────────────────────────────────────────────────────
 // ENUMS  (vaste keuzemogelijkheden)
@@ -17,6 +18,9 @@ enum Difficulty { Easy, Normal, Hard }
 // Alle soorten items die de speler kan hebben
 enum ItemType { SmallPotion, BigPotion, Bomb, Shield, PoisonCure }
 
+// Game states voor de visuele versie
+enum GameState { Menu, Playing, Combat, GameOver, Victory, WaveReward }
+
 // ─────────────────────────────────────────────────────────────
 // CLASS: Item
 // Stelt één item voor in de inventory van de speler
@@ -26,32 +30,37 @@ class Item
     public string Name { get; private set; }
     public ItemType Type { get; private set; }
     public string Description { get; private set; }
+    public Color Color { get; private set; }
 
     public Item(ItemType type)
     {
         Type = type;
-        // Stel naam en beschrijving in op basis van type
         switch (type)
         {
             case ItemType.SmallPotion:
                 Name = "Kleine Potion";
                 Description = "Herstelt 20 HP";
+                Color = new Color(0, 228, 48, 255);
                 break;
             case ItemType.BigPotion:
                 Name = "Grote Potion";
                 Description = "Herstelt 50 HP";
+                Color = new Color(0, 117, 44, 255);
                 break;
             case ItemType.Bomb:
                 Name = "Explosief";
                 Description = "Doet 40 schade aan alle zombies";
+                Color = new Color(255, 161, 0, 255);
                 break;
             case ItemType.Shield:
                 Name = "Schild";
-                Description = "Blokkeert de volgende aanval volledig";
+                Description = "Blokkeert de volgende aanval";
+                Color = new Color(0, 121, 241, 255);
                 break;
             case ItemType.PoisonCure:
                 Name = "Antidotum";
                 Description = "Geneest vergiftiging";
+                Color = new Color(200, 122, 255, 255);
                 break;
         }
     }
@@ -74,6 +83,7 @@ class Player
     public List<Item> Inventory { get; private set; }
     public int Score { get; private set; }
     public int KillCount { get; private set; }
+    public Rectangle Position { get; set; }
 
     // Constructor: maak een nieuwe speler aan
     public Player(string name, int maxHP, int attackDamage)
@@ -85,6 +95,7 @@ class Player
         Inventory = new List<Item>();
         Score = 0;
         KillCount = 0;
+        Position = new Rectangle(100, 300, 60, 80);
     }
 
     // Speler ontvangt schade (houdt rekening met schild en vergif)
@@ -93,7 +104,6 @@ class Player
         if (IsShielded)
         {
             IsShielded = false;
-            Display.WriteColored("⛊  Je schild absorbeert de aanval!", ConsoleColor.Cyan);
             return 0;
         }
         HP -= damage;
@@ -109,7 +119,6 @@ class Player
         HP -= poisonDamage;
         if (HP < 0) HP = 0;
         PoisonTurns--;
-        Display.WriteColored($"☠  Vergif! Je verliest {poisonDamage} HP door het gif. ({PoisonTurns} beurten resterend)", ConsoleColor.DarkGreen);
         if (PoisonTurns <= 0) IsPoisoned = false;
     }
 
@@ -126,31 +135,26 @@ class Player
         if (index < 0 || index >= Inventory.Count) return false;
 
         Item item = Inventory[index];
-        Inventory.RemoveAt(index);  // Item verdwijnt na gebruik
+        Inventory.RemoveAt(index);
 
         switch (item.Type)
         {
             case ItemType.SmallPotion:
                 Heal(20);
-                Display.WriteColored($"🧪 Je drinkt een kleine potion en herstelt 20 HP. (HP: {HP}/{MaxHP})", ConsoleColor.Green);
                 break;
             case ItemType.BigPotion:
                 Heal(50);
-                Display.WriteColored($"🧪 Je drinkt een grote potion en herstelt 50 HP. (HP: {HP}/{MaxHP})", ConsoleColor.Green);
                 break;
             case ItemType.Bomb:
-                Display.WriteColored("💣 BOEM! Je gooit een explosief naar de zombies!", ConsoleColor.Yellow);
                 foreach (var z in zombies)
                     if (!z.IsDead) z.TakeDamage(40);
                 break;
             case ItemType.Shield:
                 IsShielded = true;
-                Display.WriteColored("⛊  Je heft je schild - de volgende aanval wordt geblokkeerd!", ConsoleColor.Cyan);
                 break;
             case ItemType.PoisonCure:
                 IsPoisoned = false;
                 PoisonTurns = 0;
-                Display.WriteColored("💊 Je slikt het antidotum. De vergiftiging is verdwenen!", ConsoleColor.Green);
                 break;
         }
         return true;
@@ -178,7 +182,6 @@ class Player
     public void UpgradeAttack(int amount)
     {
         AttackDamage += amount;
-        Display.WriteColored($"⚔  Aanvalskracht verhoogd naar {AttackDamage}!", ConsoleColor.Yellow);
     }
 
     // Verhoog maximale HP
@@ -186,7 +189,6 @@ class Player
     {
         MaxHP += amount;
         HP = Math.Min(HP + amount, MaxHP);
-        Display.WriteColored($"❤  Maximale HP verhoogd naar {MaxHP}!", ConsoleColor.Green);
     }
 
     // Voeg score toe
@@ -194,24 +196,6 @@ class Player
     {
         Score += points;
         KillCount++;
-    }
-
-    // Toon spelersstatus
-    public void ShowStats()
-    {
-        Console.WriteLine();
-        Display.WriteColored("╔══════════════════════════════╗", ConsoleColor.White);
-        Display.WriteColored($"║  🧍 {Name,-24} ║", ConsoleColor.White);
-        Display.WriteColored($"║  HP:     {Display.HPBar(HP, MaxHP),20} ║", ConsoleColor.White);
-        Display.WriteColored($"║  ❤  {HP}/{MaxHP,-24} ║", ConsoleColor.Green);
-        Display.WriteColored($"║  ⚔  Aanval: {AttackDamage,-17} ║", ConsoleColor.Yellow);
-        if (IsPoisoned)
-            Display.WriteColored($"║  ☠  Vergiftigd ({PoisonTurns} beurten)     ║", ConsoleColor.DarkGreen);
-        if (IsShielded)
-            Display.WriteColored($"║  ⛊  Schild actief              ║", ConsoleColor.Cyan);
-        Display.WriteColored($"║  🏆 Score: {Score,-18} ║", ConsoleColor.Magenta);
-        Display.WriteColored("╚══════════════════════════════╝", ConsoleColor.White);
-        Console.WriteLine();
     }
 }
 
@@ -226,7 +210,9 @@ class Zombie
     public int HP { get; protected set; }
     public int AttackDamage { get; protected set; }
     public bool IsDead => HP <= 0;
+    public Rectangle Position { get; set; }
     protected Random rng = new Random();
+    public Color Color { get; protected set; }
 
     // Constructor
     public Zombie(string name, int maxHP, int attackDamage)
@@ -235,6 +221,8 @@ class Zombie
         MaxHP = maxHP;
         HP = maxHP;
         AttackDamage = attackDamage;
+        Position = new Rectangle(600, 300, 60, 80);
+        Color = new Color(127, 106, 79, 255);
     }
 
     // Zombie ontvangt schade
@@ -242,9 +230,6 @@ class Zombie
     {
         HP -= damage;
         if (HP < 0) HP = 0;
-
-        if (IsDead)
-            Display.WriteColored($"💀 {Name} valt uit elkaar!", ConsoleColor.DarkRed);
     }
 
     // Zombie geneest HP (voor boss)
@@ -257,24 +242,9 @@ class Zombie
     public virtual int Attack(Player player)
     {
         if (IsDead) return 0;
-
         int damage = rng.Next(AttackDamage - 3, AttackDamage + 4);
         if (damage < 1) damage = 1;
-
-        Display.WriteColored($"🧟 {Name} strompelt naar je toe...", ConsoleColor.DarkYellow);
-        Thread.Sleep(600);
-
-        int dealt = player.TakeDamage(damage);
-        if (dealt > 0)
-            Display.WriteColored($"   Je ontvangt {dealt} schade! (HP: {player.HP}/{player.MaxHP})", ConsoleColor.Red);
-        return dealt;
-    }
-
-    // Toon zombie stats
-    public virtual void ShowStats()
-    {
-        string hpBar = Display.HPBar(HP, MaxHP);
-        Display.WriteColored($"  🧟 {Name,-18} {hpBar} {HP}/{MaxHP} HP", ConsoleColor.DarkYellow);
+        return player.TakeDamage(damage);
     }
 }
 
@@ -284,25 +254,19 @@ class Zombie
 // ─────────────────────────────────────────────────────────────
 class FastZombie : Zombie
 {
-    public FastZombie(string name) : base(name, maxHP: 35, attackDamage: 8) { }
+    public FastZombie(string name) : base(name, maxHP: 35, attackDamage: 8) 
+    { 
+        Color = new Color(230, 41, 55, 255);
+    }
 
     public override int Attack(Player player)
     {
         if (IsDead) return 0;
-        Display.WriteColored($"💨 {Name} schiet razendsnel op je af...", ConsoleColor.Yellow);
-        Thread.Sleep(400);
-
         int total = 0;
-        for (int i = 0; i < 2; i++)  // Twee aanvallen!
+        for (int i = 0; i < 2; i++)
         {
             int damage = rng.Next(4, 12);
-            int dealt = player.TakeDamage(damage);
-            if (dealt > 0)
-            {
-                Display.WriteColored($"   Aanval {i + 1}: {dealt} schade! (HP: {player.HP}/{player.MaxHP})", ConsoleColor.Red);
-                total += dealt;
-            }
-            Thread.Sleep(300);
+            total += player.TakeDamage(damage);
         }
         return total;
     }
@@ -314,15 +278,15 @@ class FastZombie : Zombie
 // ─────────────────────────────────────────────────────────────
 class TankZombie : Zombie
 {
-    public TankZombie(string name) : base(name, maxHP: 120, attackDamage: 6) { }
+    public TankZombie(string name) : base(name, maxHP: 120, attackDamage: 6) 
+    { 
+        Color = new Color(80, 80, 80, 255);
+    }
 
     public override void TakeDamage(int damage)
     {
-        // Tankt 20% van alle schade weg
         int reduced = (int)(damage * 0.8);
         base.TakeDamage(reduced);
-        if (!IsDead)
-            Display.WriteColored($"   (De dikke huid absorbeert {damage - reduced} schade)", ConsoleColor.Gray);
     }
 }
 
@@ -332,25 +296,19 @@ class TankZombie : Zombie
 // ─────────────────────────────────────────────────────────────
 class PoisonZombie : Zombie
 {
-    public PoisonZombie(string name) : base(name, maxHP: 50, attackDamage: 9) { }
+    public PoisonZombie(string name) : base(name, maxHP: 50, attackDamage: 9) 
+    { 
+        Color = new Color(0, 117, 44, 255);
+    }
 
     public override int Attack(Player player)
     {
         if (IsDead) return 0;
-        Display.WriteColored($"🟢 {Name} spuwt giftig slijm...", ConsoleColor.DarkGreen);
-        Thread.Sleep(600);
-
         int damage = rng.Next(6, 13);
         int dealt = player.TakeDamage(damage);
-        if (dealt > 0)
+        if (dealt > 0 && rng.Next(100) < 60)
         {
-            Display.WriteColored($"   Je ontvangt {dealt} schade!", ConsoleColor.Red);
-            // 60% kans op vergiftiging
-            if (rng.Next(100) < 60)
-            {
-                player.Poison(3);
-                Display.WriteColored("   ☠  Je bent vergiftigd! (3 beurten)", ConsoleColor.DarkGreen);
-            }
+            player.Poison(3);
         }
         return dealt;
     }
@@ -362,282 +320,148 @@ class PoisonZombie : Zombie
 // ─────────────────────────────────────────────────────────────
 class BossZombie : Zombie
 {
-    private int turnCount = 0;  // Telt hoeveel beurten de boss al leeft
-
-    public BossZombie(string name) : base(name, maxHP: 200, attackDamage: 18) { }
+    private int turnCount = 0;
+    public BossZombie(string name) : base(name, maxHP: 200, attackDamage: 18) 
+    { 
+        Color = new Color(112, 31, 126, 255);
+    }
 
     public override int Attack(Player player)
     {
         if (IsDead) return 0;
         turnCount++;
 
-        // Elke 3 beurten: boss geneest zichzelf
         if (turnCount % 3 == 0)
         {
-            Display.WriteColored($"💀 {Name} brult luid en herstelt 20 HP!", ConsoleColor.Magenta);
             Heal(20);
-            Thread.Sleep(600);
         }
 
-        // Speciale aanval om de 4 beurten
         if (turnCount % 4 == 0)
         {
-            Display.WriteColored($"💀 {Name} gooit je de lucht in met een VERPLETTERENDE KLAP!", ConsoleColor.Magenta);
-            Thread.Sleep(600);
             int damage = rng.Next(25, 35);
-            int dealt = player.TakeDamage(damage);
-            Display.WriteColored($"   KRITIEKE AANVAL! {dealt} schade! (HP: {player.HP}/{player.MaxHP})", ConsoleColor.Red);
-            return dealt;
+            return player.TakeDamage(damage);
         }
 
-        // Normale aanval
-        Display.WriteColored($"👹 {Name} stormt op je af...", ConsoleColor.Magenta);
-        Thread.Sleep(600);
         int dmg = rng.Next(12, 22);
-        int d = player.TakeDamage(dmg);
-        if (d > 0)
-            Display.WriteColored($"   Je ontvangt {d} schade! (HP: {player.HP}/{player.MaxHP})", ConsoleColor.Red);
-        return d;
-    }
-
-    public override void ShowStats()
-    {
-        string hpBar = Display.HPBar(HP, MaxHP);
-        Display.WriteColored($"  👹 {Name,-18} {hpBar} {HP}/{MaxHP} HP  ← BOSS!", ConsoleColor.Magenta);
+        return player.TakeDamage(dmg);
     }
 }
 
 // ─────────────────────────────────────────────────────────────
-// CLASS: Display (hulpklasse voor mooie output)
+// CLASS: VisualGame (hoofdklasse voor visuele game)
 // ─────────────────────────────────────────────────────────────
-static class Display
-{
-    private static Random rng = new Random();
-
-    // Schrijf gekleurde tekst
-    public static void WriteColored(string text, ConsoleColor color)
-    {
-        Console.ForegroundColor = color;
-        Console.WriteLine(text);
-        Console.ResetColor();
-    }
-
-    // Genereer een HP-balk
-    public static string HPBar(int current, int max)
-    {
-        int barLength = 10;
-        int filled = max > 0 ? (int)((double)current / max * barLength) : 0;
-        return "[" + new string('█', filled) + new string('░', barLength - filled) + "]";
-    }
-
-    // Kleine pauze voor dramatisch effect
-    public static void Pause(int ms = 800) => Thread.Sleep(ms);
-
-    // Druk op enter om door te gaan
-    public static void PressEnter()
-    {
-        WriteColored("\n[Druk op ENTER om door te gaan...]", ConsoleColor.DarkGray);
-        Console.ReadLine();
-    }
-
-    // Toon het startscherm met ASCII art
-    public static void ShowTitle()
-    {
-        Console.Clear();
-        Console.ForegroundColor = ConsoleColor.DarkRed;
-        Console.WriteLine(@"
-  ███████╗ ██████╗ ███╗   ███╗██████╗ ██╗███████╗
-  ╚══███╔╝██╔═══██╗████╗ ████║██╔══██╗██║██╔════╝
-    ███╔╝ ██║   ██║██╔████╔██║██████╔╝██║█████╗  
-   ███╔╝  ██║   ██║██║╚██╔╝██║██╔══██╗██║██╔══╝  
-  ███████╗╚██████╔╝██║ ╚═╝ ██║██████╔╝██║███████╗
-  ╚══════╝ ╚═════╝ ╚═╝     ╚═╝╚═════╝ ╚═╝╚══════╝
-");
-        Console.ForegroundColor = ConsoleColor.Red;
-        Console.WriteLine("            ★  S U R V I V A L  ★");
-        Console.ResetColor();
-        Console.WriteLine();
-        WriteColored("  Overleef de golven. Verslaan de boss. Ontsnappe levend.", ConsoleColor.Gray);
-        Console.WriteLine();
-    }
-
-    // Toon wave-aankondiging
-    public static void ShowWaveBanner(int wave, string label = "")
-    {
-        Console.WriteLine();
-        WriteColored($"══════════════════════════════════════════", ConsoleColor.DarkYellow);
-        WriteColored($"         ⚠  WAVE {wave}  {label}  ⚠", ConsoleColor.Yellow);
-        WriteColored($"══════════════════════════════════════════", ConsoleColor.DarkYellow);
-        Console.WriteLine();
-        Pause(1000);
-    }
-
-    // Toon game over scherm
-    public static void ShowGameOver(Player player)
-    {
-        Console.Clear();
-        Console.ForegroundColor = ConsoleColor.DarkRed;
-        Console.WriteLine(@"
-   ██████╗  █████╗ ███╗   ███╗███████╗
-  ██╔════╝ ██╔══██╗████╗ ████║██╔════╝
-  ██║  ███╗███████║██╔████╔██║█████╗  
-  ██║   ██║██╔══██║██║╚██╔╝██║██╔══╝  
-  ╚██████╔╝██║  ██║██║ ╚═╝ ██║███████╗
-   ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝╚══════╝
-
-              O V E R
-");
-        Console.ResetColor();
-        WriteColored($"  De zombies hebben gewonnen...", ConsoleColor.Gray);
-        Console.WriteLine();
-        ShowEndStats(player);
-    }
-
-    // Toon victory scherm
-    public static void ShowVictory(Player player)
-    {
-        Console.Clear();
-        Console.ForegroundColor = ConsoleColor.Yellow;
-        Console.WriteLine(@"
-  ██╗   ██╗ ██████╗ ████████╗ ██████╗ ██████╗ ██╗
-  ██║   ██║██╔════╝ ╚══██╔══╝██╔═══██╗██╔══██╗██║
-  ██║   ██║██║         ██║   ██║   ██║██████╔╝██║
-  ╚██╗ ██╔╝██║         ██║   ██║   ██║██╔══██╗╚═╝
-   ╚████╔╝ ╚██████╗    ██║   ╚██████╔╝██║  ██║██╗
-    ╚═══╝   ╚═════╝    ╚═╝    ╚═════╝ ╚═╝  ╚═╝╚═╝
-");
-        Console.ResetColor();
-        WriteColored("  🎉 Je hebt alle waves overleefd! GEWELDIG!", ConsoleColor.Green);
-        Console.WriteLine();
-        ShowEndStats(player);
-    }
-
-    // Eindscore scherm
-    private static void ShowEndStats(Player player)
-    {
-        WriteColored("╔══════════════════════════════════╗", ConsoleColor.White);
-        WriteColored("║       EINDSTATISTIEKEN           ║", ConsoleColor.White);
-        WriteColored($"║  Naam:       {player.Name,-20} ║", ConsoleColor.White);
-        WriteColored($"║  Score:      {player.Score,-20} ║", ConsoleColor.Magenta);
-        WriteColored($"║  Zombies:    {player.KillCount,-20} ║", ConsoleColor.Red);
-        WriteColored($"║  HP over:    {player.HP}/{player.MaxHP,-17} ║", ConsoleColor.Green);
-        WriteColored("╚══════════════════════════════════╝", ConsoleColor.White);
-        Console.WriteLine();
-    }
-}
-
-// ─────────────────────────────────────────────────────────────
-// CLASS: Game (de hoofdklasse die alles bestuurt)
-// ─────────────────────────────────────────────────────────────
-class Game
+class VisualGame
 {
     private Player player;
+    private List<Zombie> zombies;
     private Random rng = new Random();
     private Difficulty difficulty;
     private int currentWave = 0;
     private const int TOTAL_WAVES = 5;
+    private GameState gameState = GameState.Menu;
+    private int selectedZombie = 0;
+    private int selectedItem = 0;
+    private string playerName = "Overlever";
+    private string message = "";
+    private int messageTimer = 0;
+    private int selectedReward = 0;
 
-    // Start het spel
     public void Run()
     {
-        Display.ShowTitle();
-        Setup();
-        GameLoop();
+        const int screenWidth = 1000;
+        const int screenHeight = 700;
+        
+        Raylib.InitWindow(screenWidth, screenHeight, "Zombie Survival - Visual Edition");
+        Raylib.SetTargetFPS(60);
+
+        while (!Raylib.WindowShouldClose())
+        {
+            Update();
+            Draw();
+        }
+
+        Raylib.CloseWindow();
     }
 
-    // Initialiseer speler en moeilijkheidsgraad
-    private void Setup()
+    private void Update()
     {
-        Console.WriteLine();
-        Display.WriteColored("  Voer je naam in:", ConsoleColor.White);
-        Console.Write("  > ");
-        string name = Console.ReadLine()?.Trim();
-        if (string.IsNullOrEmpty(name)) name = "Overlever";
-
-        Console.WriteLine();
-        Display.WriteColored("  Kies moeilijkheidsgraad:", ConsoleColor.White);
-        Display.WriteColored("  1. Makkelijk  (meer HP, minder zombieschade)", ConsoleColor.Green);
-        Display.WriteColored("  2. Normaal    (standaard)", ConsoleColor.Yellow);
-        Display.WriteColored("  3. Moeilijk   (minder HP, meer zombieschade)", ConsoleColor.Red);
-        Console.Write("  > ");
-        string choice = Console.ReadLine();
-
-        // Stel speler in op basis van moeilijkheid
-        switch (choice)
+        switch (gameState)
         {
-            case "1":
-                difficulty = Difficulty.Easy;
-                player = new Player(name, maxHP: 150, attackDamage: 20);
+            case GameState.Menu:
+                UpdateMenu();
+                break;
+            case GameState.Playing:
+                UpdateGame();
+                break;
+            case GameState.Combat:
+                UpdateCombat();
+                break;
+            case GameState.WaveReward:
+                UpdateWaveReward();
+                break;
+            case GameState.GameOver:
+            case GameState.Victory:
+                UpdateEndScreen();
+                break;
+        }
+
+        // Update message timer
+        if (messageTimer > 0) messageTimer--;
+    }
+
+    private void UpdateMenu()
+    {
+        if (Raylib.IsKeyPressed(KeyboardKey.One))
+        {
+            difficulty = Difficulty.Easy;
+            StartGame();
+        }
+        else if (Raylib.IsKeyPressed(KeyboardKey.Two))
+        {
+            difficulty = Difficulty.Normal;
+            StartGame();
+        }
+        else if (Raylib.IsKeyPressed(KeyboardKey.Three))
+        {
+            difficulty = Difficulty.Hard;
+            StartGame();
+        }
+    }
+
+    private void StartGame()
+    {
+        // Maak speler aan op basis van moeilijkheid
+        switch (difficulty)
+        {
+            case Difficulty.Easy:
+                player = new Player(playerName, 150, 20);
                 player.AddItem(new Item(ItemType.BigPotion));
                 player.AddItem(new Item(ItemType.SmallPotion));
                 player.AddItem(new Item(ItemType.Shield));
-                Display.WriteColored("\n  Je speelt op MAKKELIJK. Veel succes!", ConsoleColor.Green);
                 break;
-            case "3":
-                difficulty = Difficulty.Hard;
-                player = new Player(name, maxHP: 70, attackDamage: 14);
+            case Difficulty.Hard:
+                player = new Player(playerName, 70, 14);
                 player.AddItem(new Item(ItemType.SmallPotion));
-                Display.WriteColored("\n  Je speelt op MOEILIJK. Vaarwel...", ConsoleColor.Red);
                 break;
             default:
-                difficulty = Difficulty.Normal;
-                player = new Player(name, maxHP: 100, attackDamage: 17);
+                player = new Player(playerName, 100, 17);
                 player.AddItem(new Item(ItemType.SmallPotion));
                 player.AddItem(new Item(ItemType.SmallPotion));
-                Display.WriteColored("\n  Je speelt op NORMAAL. Succes!", ConsoleColor.Yellow);
                 break;
         }
 
-        Display.PressEnter();
+        currentWave = 1;
+        gameState = GameState.Playing;
+        SpawnWave();
+        SetMessage($"Wave {currentWave} begint!");
     }
 
-    // Hoofd game loop: doorloop alle waves
-    private void GameLoop()
+    private void SpawnWave()
     {
-        for (int wave = 1; wave <= TOTAL_WAVES; wave++)
-        {
-            currentWave = wave;
-            List<Zombie> zombies = SpawnWave(wave);
-
-            Display.ShowWaveBanner(wave, wave == TOTAL_WAVES ? "⚡ BOSS FIGHT ⚡" : "");
-
-            bool ranAway = RunCombat(zombies);
-
-            if (player.IsDead)
-            {
-                Display.ShowGameOver(player);
-                return;
-            }
-
-            if (!ranAway)
-            {
-                Display.WriteColored($"\n✅ Wave {wave} overleefd! Uitstekend werk, {player.Name}!", ConsoleColor.Green);
-                player.AddScore(wave * 50);
-
-                if (wave < TOTAL_WAVES)
-                {
-                    Display.PressEnter();
-                    WaveReward(wave);
-                }
-            }
-            else
-            {
-                Display.WriteColored("\n🏃 Je bent weggevlucht! Het spel is over.", ConsoleColor.DarkYellow);
-                Display.ShowGameOver(player);
-                return;
-            }
-        }
-
-        Display.ShowVictory(player);
-    }
-
-    // Maak zombies aan voor een bepaalde wave
-    private List<Zombie> SpawnWave(int wave)
-    {
-        var zombies = new List<Zombie>();
+        zombies = new List<Zombie>();
         int diffMultiplier = difficulty == Difficulty.Easy ? 1 : difficulty == Difficulty.Hard ? 2 : 1;
 
-        switch (wave)
+        switch (currentWave)
         {
             case 1:
                 zombies.Add(new Zombie("Kreunende Bob", 40 + diffMultiplier * 5, 8 + diffMultiplier * 2));
@@ -657,199 +481,139 @@ class Game
                 break;
             case 5:
                 zombies.Add(new BossZombie("⚡ ZOMBIE LORD MORTIS ⚡"));
-                Display.WriteColored("De grond trilt... ZOMBIE LORD MORTIS staat op!", ConsoleColor.Magenta);
-                Display.Pause(1500);
                 break;
         }
 
         // Verdubbel HP op Hard
         if (difficulty == Difficulty.Hard)
             foreach (var z in zombies)
-                z.Heal(z.MaxHP / 2);  // Extra HP voor hard mode
+                z.Heal(z.MaxHP / 2);
 
-        return zombies;
+        // Positioneer zombies
+        for (int i = 0; i < zombies.Count; i++)
+        {
+            zombies[i].Position = new Rectangle(600 + i * 80, 200 + i * 100, 60, 80);
+        }
+
+        gameState = GameState.Combat;
     }
 
-    // Voer het gevecht uit voor één wave
-    private bool RunCombat(List<Zombie> zombies)
+    private void UpdateGame()
     {
-        bool ranAway = false;
-
-        while (!player.IsDead && zombies.Exists(z => !z.IsDead))
+        // Game logica tussen waves
+        if (Raylib.IsKeyPressed(KeyboardKey.Space))
         {
-            // Toon situatie
-            Console.Clear();
-            Display.WriteColored($"══ WAVE {currentWave}/{TOTAL_WAVES} ══════════════════════════", ConsoleColor.DarkYellow);
-            player.ShowStats();
+            currentWave++;
+            if (currentWave > TOTAL_WAVES)
+            {
+                gameState = GameState.Victory;
+            }
+            else
+            {
+                SpawnWave();
+                SetMessage($"Wave {currentWave} begint!");
+            }
+        }
+    }
 
-            Display.WriteColored("VIJANDEN:", ConsoleColor.DarkRed);
-            foreach (var z in zombies)
-                if (!z.IsDead) z.ShowStats();
+    private void UpdateCombat()
+    {
+        // Selecteer zombie met pijltjestoetsen
+        if (Raylib.IsKeyPressed(KeyboardKey.Up))
+        {
+            selectedZombie = (selectedZombie - 1 + zombies.Count) % zombies.Count;
+        }
+        if (Raylib.IsKeyPressed(KeyboardKey.Down))
+        {
+            selectedZombie = (selectedZombie + 1) % zombies.Count;
+        }
 
-            // Toon inventory als er items zijn
+        // Combat acties
+        if (Raylib.IsKeyPressed(KeyboardKey.One))
+        {
+            AttackZombie(false);
+        }
+        else if (Raylib.IsKeyPressed(KeyboardKey.Two))
+        {
+            AttackZombie(true);
+        }
+        else if (Raylib.IsKeyPressed(KeyboardKey.Three))
+        {
+            // Genezen
+            int healAmount = rng.Next(15, 30);
+            player.Heal(healAmount);
+            SetMessage($"Je herstelt {healAmount} HP!");
+            EndPlayerTurn();
+        }
+        else if (Raylib.IsKeyPressed(KeyboardKey.Four))
+        {
+            // Item gebruiken
             if (player.Inventory.Count > 0)
             {
-                Console.WriteLine();
-                Display.WriteColored("RUGZAK:", ConsoleColor.DarkCyan);
-                for (int i = 0; i < player.Inventory.Count; i++)
-                    Display.WriteColored($"  {i + 1}. {player.Inventory[i].Name} - {player.Inventory[i].Description}", ConsoleColor.Cyan);
+                if (Raylib.IsKeyPressed(KeyboardKey.Left))
+                {
+                    selectedItem = (selectedItem - 1 + player.Inventory.Count) % player.Inventory.Count;
+                }
+                if (Raylib.IsKeyPressed(KeyboardKey.Right))
+                {
+                    selectedItem = (selectedItem + 1) % player.Inventory.Count;
+                }
+                if (Raylib.IsKeyPressed(KeyboardKey.Enter))
+                {
+                    player.UseItem(selectedItem, zombies);
+                    SetMessage($"Gebruikt item!");
+                    EndPlayerTurn();
+                }
             }
-
-            // Speler kiest actie
-            Console.WriteLine();
-            Display.WriteColored("╔══════════════════════════╗", ConsoleColor.White);
-            Display.WriteColored("║  WAT DOE JE?             ║", ConsoleColor.White);
-            Display.WriteColored("║  1. Aanvallen            ║", ConsoleColor.White);
-            Display.WriteColored("║  2. Zware aanval         ║", ConsoleColor.White);
-            Display.WriteColored("║  3. Genezen              ║", ConsoleColor.White);
-            Display.WriteColored("║  4. Item gebruiken       ║", ConsoleColor.White);
-            Display.WriteColored("║  5. Stats tonen          ║", ConsoleColor.White);
-            Display.WriteColored("║  6. Vluchten             ║", ConsoleColor.White);
-            Display.WriteColored("╚══════════════════════════╝", ConsoleColor.White);
-            Console.Write("  Keuze: ");
-
-            string input = Console.ReadLine();
-            Console.WriteLine();
-
-            bool playerActed = true;
-
-            switch (input)
+            else
             {
-                case "1": // Normale aanval
-                    AttackZombie(zombies, false);
-                    break;
-
-                case "2": // Zware aanval (kans op missen)
-                    AttackZombie(zombies, true);
-                    break;
-
-                case "3": // Genezen (kost een beurt)
-                    int healAmount = rng.Next(15, 30);
-                    player.Heal(healAmount);
-                    Display.WriteColored($"🩹 Je verbindt je wonden en herstelt {healAmount} HP. (HP: {player.HP}/{player.MaxHP})", ConsoleColor.Green);
-                    break;
-
-                case "4": // Item gebruiken
-                    if (player.Inventory.Count == 0)
-                    {
-                        Display.WriteColored("Je rugzak is leeg!", ConsoleColor.DarkGray);
-                        playerActed = false;
-                        break;
-                    }
-                    Console.Write("  Welk item (nummer)? ");
-                    if (int.TryParse(Console.ReadLine(), out int itemIdx))
-                        player.UseItem(itemIdx - 1, zombies);
-                    else
-                        playerActed = false;
-                    break;
-
-                case "5": // Stats tonen (geen beurt)
-                    player.ShowStats();
-                    Display.PressEnter();
-                    playerActed = false;
-                    break;
-
-                case "6": // Vluchten
-                    // 40% kans om te vluchten
-                    if (rng.Next(100) < 40)
-                    {
-                        Display.WriteColored("🏃 Je rent weg! Je overleeft, maar de missie is mislukt.", ConsoleColor.DarkYellow);
-                        return true;
-                    }
-                    else
-                    {
-                        Display.WriteColored("🏃 Je probeert te vluchten maar de zombies zijn te snel!", ConsoleColor.Red);
-                    }
-                    break;
-
-                default:
-                    Display.WriteColored("Ongeldige keuze.", ConsoleColor.DarkGray);
-                    playerActed = false;
-                    break;
+                SetMessage("Geen items in inventory!");
             }
-
-            // Verwerk vergiftiging na speler-beurt
-            if (playerActed)
-                player.ProcessPoison();
-
-            if (player.IsDead) break;
-
-            // Check of alle zombies dood zijn
-            if (!zombies.Exists(z => !z.IsDead)) break;
-
-            // Zombies vallen terug aan
-            Display.Pause(600);
-            Display.WriteColored("\n--- ZOMBIES VALLEN AAN ---", ConsoleColor.DarkRed);
-            Display.Pause(400);
-            foreach (var z in zombies)
-                if (!z.IsDead) z.Attack(player);
-
-            Display.PressEnter();
         }
 
-        return ranAway;
+        // Check of alle zombies dood zijn
+        if (zombies.All(z => z.IsDead))
+        {
+            player.AddScore(currentWave * 50);
+            gameState = GameState.WaveReward;
+            selectedReward = 0;
+        }
+
+        // Check of speler dood is
+        if (player.IsDead)
+        {
+            gameState = GameState.GameOver;
+        }
     }
 
-    // Verwerk een aanval van de speler op een zombie
-    private void AttackZombie(List<Zombie> zombies, bool heavy)
+    private void AttackZombie(bool heavy)
     {
-        // Kies doelwit als er meerdere zombies zijn
-        List<Zombie> aliveZombies = zombies.FindAll(z => !z.IsDead);
-        Zombie target;
+        var aliveZombies = zombies.Where(z => !z.IsDead).ToList();
+        if (aliveZombies.Count == 0) return;
 
-        if (aliveZombies.Count > 1)
-        {
-            Display.WriteColored("Kies een doelwit:", ConsoleColor.White);
-            for (int i = 0; i < aliveZombies.Count; i++)
-                Display.WriteColored($"  {i + 1}. {aliveZombies[i].Name}", ConsoleColor.DarkYellow);
-            Console.Write("  > ");
-
-            if (int.TryParse(Console.ReadLine(), out int targetIdx) && targetIdx >= 1 && targetIdx <= aliveZombies.Count)
-                target = aliveZombies[targetIdx - 1];
-            else
-                target = aliveZombies[0];
-        }
-        else
-        {
-            target = aliveZombies[0];
-        }
-
-        Console.WriteLine();
+        Zombie target = aliveZombies[selectedZombie % aliveZombies.Count];
 
         if (heavy)
         {
-            // Zware aanval: 30% kans te missen, maar 2x schade bij treffer
+            // Zware aanval: 30% kans te missen
             if (rng.Next(100) < 30)
             {
-                Display.WriteColored("💨 Je mist je aanval! De zombie duwt je opzij.", ConsoleColor.DarkGray);
+                SetMessage("Je mist je aanval!");
+                EndPlayerTurn();
                 return;
             }
             int damage = player.AttackDamage * 2;
-            // Critical hit kans
-            if (rng.Next(100) < 20)
-            {
-                damage = (int)(damage * 1.5);
-                Display.WriteColored("⚡ CRITICAL HIT!", ConsoleColor.Yellow);
-            }
-            Display.WriteColored($"🪓 ZWARE AANVAL! Je slaat {target.Name} voor {damage} schade!", ConsoleColor.Yellow);
+            if (rng.Next(100) < 20) damage = (int)(damage * 1.5); // Critical hit
             target.TakeDamage(damage);
+            SetMessage($"ZWARE AANVAL! {damage} schade!");
         }
         else
         {
-            // Normale aanval met kleine variatie
             int damage = rng.Next(player.AttackDamage - 3, player.AttackDamage + 5);
             if (damage < 1) damage = 1;
-
-            // 15% kans op critical hit
-            bool crit = rng.Next(100) < 15;
-            if (crit)
-            {
-                damage = (int)(damage * 1.5);
-                Display.WriteColored("⚡ CRITICAL HIT!", ConsoleColor.Yellow);
-            }
-
-            Display.WriteColored($"⚔  Je valt {target.Name} aan voor {damage} schade!", ConsoleColor.White);
+            if (rng.Next(100) < 15) damage = (int)(damage * 1.5); // Critical hit
             target.TakeDamage(damage);
+            SetMessage($"Aanval! {damage} schade!");
         }
 
         // Voeg score toe bij kill
@@ -857,70 +621,286 @@ class Game
         {
             int points = target is BossZombie ? 500 : target is TankZombie ? 150 : 100;
             player.AddScore(points);
-            Display.WriteColored($"  +{points} punten!", ConsoleColor.Magenta);
-            Display.Pause(500);
-
+            SetMessage($"{target.Name} verslagen! +{points} punten!");
+            
             // Kans op loot
-            DropLoot(target);
+            if (rng.Next(100) < 35)
+            {
+                ItemType[] possibleLoot = { ItemType.SmallPotion, ItemType.SmallPotion,
+                                             ItemType.BigPotion, ItemType.Bomb,
+                                             ItemType.PoisonCure, ItemType.Shield };
+                Item loot = new Item(possibleLoot[rng.Next(possibleLoot.Length)]);
+                player.AddItem(loot);
+                SetMessage($"Gevonden: {loot.Name}!");
+            }
+        }
+
+        EndPlayerTurn();
+    }
+
+    private void EndPlayerTurn()
+    {
+        // Verwerk vergiftiging
+        player.ProcessPoison();
+
+        // Zombies vallen aan
+        foreach (var zombie in zombies.Where(z => !z.IsDead))
+        {
+            zombie.Attack(player);
         }
     }
 
-    // Willekeurige loot na het verslaan van een zombie
-    private void DropLoot(Zombie zombie)
+    private void UpdateWaveReward()
     {
-        int chance = rng.Next(100);
-        if (chance < 35)  // 35% kans op loot
+        if (Raylib.IsKeyPressed(KeyboardKey.Up))
         {
-            ItemType[] possibleLoot = { ItemType.SmallPotion, ItemType.SmallPotion,
-                                         ItemType.BigPotion, ItemType.Bomb,
-                                         ItemType.PoisonCure, ItemType.Shield };
-            Item loot = new Item(possibleLoot[rng.Next(possibleLoot.Length)]);
-            player.AddItem(loot);
-            Display.WriteColored($"🎁 Je vindt een {loot.Name} op het lijk!", ConsoleColor.Cyan);
+            selectedReward = (selectedReward - 1 + 4) % 4;
+        }
+        if (Raylib.IsKeyPressed(KeyboardKey.Down))
+        {
+            selectedReward = (selectedReward + 1) % 4;
+        }
+        if (Raylib.IsKeyPressed(KeyboardKey.Enter))
+        {
+            switch (selectedReward)
+            {
+                case 0:
+                    player.Heal(player.MaxHP);
+                    SetMessage("HP volledig hersteld!");
+                    break;
+                case 1:
+                    player.UpgradeAttack(5);
+                    SetMessage("Aanval +5!");
+                    break;
+                case 2:
+                    player.UpgradeMaxHP(20);
+                    SetMessage("Max HP +20!");
+                    break;
+                case 3:
+                    player.AddItem(new Item(ItemType.BigPotion));
+                    SetMessage("Grote Potion ontvangen!");
+                    break;
+            }
+            
+            currentWave++;
+            if (currentWave > TOTAL_WAVES)
+            {
+                gameState = GameState.Victory;
+            }
+            else
+            {
+                SpawnWave();
+                SetMessage($"Wave {currentWave} begint!");
+            }
         }
     }
 
-    // Beloning na een wave: speler mag een upgrade kiezen
-    private void WaveReward(int wave)
+    private void UpdateEndScreen()
     {
-        Console.Clear();
-        Display.WriteColored("══════════════════════════════════════", ConsoleColor.Yellow);
-        Display.WriteColored($"  🏅 WAVE {wave} COMPLEET - Kies je beloning:", ConsoleColor.Yellow);
-        Display.WriteColored("══════════════════════════════════════", ConsoleColor.Yellow);
-        Console.WriteLine();
-        Display.WriteColored("  1. ❤  HP volledig herstellen", ConsoleColor.Green);
-        Display.WriteColored("  2. ⚔  Aanval +5", ConsoleColor.Yellow);
-        Display.WriteColored("  3. 💪 Max HP +20", ConsoleColor.Cyan);
-        Display.WriteColored("  4. 🧪 Ontvang een Grote Potion", ConsoleColor.Magenta);
-        Console.WriteLine();
-        Console.Write("  Keuze: ");
-
-        string choice = Console.ReadLine();
-        Console.WriteLine();
-
-        switch (choice)
+        if (Raylib.IsKeyPressed(KeyboardKey.Space))
         {
-            case "1":
-                player.Heal(player.MaxHP);
-                Display.WriteColored("  ❤  Je HP is volledig hersteld!", ConsoleColor.Green);
+            gameState = GameState.Menu;
+        }
+    }
+
+    private void SetMessage(string msg)
+    {
+        message = msg;
+        messageTimer = 120; // 2 seconden bij 60 FPS
+    }
+
+    private void Draw()
+    {
+        Raylib.BeginDrawing();
+        Raylib.ClearBackground(new Color(0, 0, 0, 255));
+
+        switch (gameState)
+        {
+            case GameState.Menu:
+                DrawMenu();
                 break;
-            case "2":
-                player.UpgradeAttack(5);
+            case GameState.Combat:
+                DrawCombat();
                 break;
-            case "3":
-                player.UpgradeMaxHP(20);
+            case GameState.WaveReward:
+                DrawWaveReward();
                 break;
-            case "4":
-                player.AddItem(new Item(ItemType.BigPotion));
-                Display.WriteColored("  🧪 Grote Potion toegevoegd aan rugzak!", ConsoleColor.Magenta);
+            case GameState.GameOver:
+                DrawGameOver();
                 break;
-            default:
-                player.Heal(player.MaxHP);
-                Display.WriteColored("  ❤  HP hersteld (standaard keuze).", ConsoleColor.Green);
+            case GameState.Victory:
+                DrawVictory();
                 break;
         }
 
-        Display.PressEnter();
+        Raylib.EndDrawing();
+    }
+
+    private void DrawMenu()
+    {
+        // Titel
+        Raylib.DrawText("ZOMBIE SURVIVAL", 250, 100, 60, new Color(230, 41, 55, 255));
+        Raylib.DrawText("VISUAL EDITION", 300, 170, 30, new Color(255, 255, 255, 255));
+
+        // Moeilijkheidskeuze
+        Raylib.DrawText("Kies moeilijkheidsgraad:", 300, 250, 25, new Color(255, 255, 255, 255));
+        
+        Raylib.DrawText("1. Makkelijk", 350, 320, 20, new Color(0, 228, 48, 255));
+        Raylib.DrawText("2. Normaal", 350, 360, 20, new Color(255, 255, 255, 255));
+        Raylib.DrawText("3. Moeilijk", 350, 400, 20, new Color(230, 41, 55, 255));
+
+        // Instructies
+        Raylib.DrawText("Druk op 1, 2 of 3 om te starten", 250, 500, 18, new Color(130, 130, 130, 255));
+    }
+
+    private void DrawCombat()
+    {
+        // Wave info
+        Raylib.DrawText($"Wave {currentWave}/{TOTAL_WAVES}", 10, 10, 24, new Color(255, 255, 255, 255));
+
+        // Speler
+        DrawPlayer();
+
+        // Zombies
+        for (int i = 0; i < zombies.Count; i++)
+        {
+            DrawZombie(zombies[i], i == selectedZombie);
+        }
+
+        // UI Panel
+        DrawUIPanel();
+
+        // Message
+        if (messageTimer > 0)
+        {
+            Raylib.DrawRectangle(200, 50, 600, 40, new Color(80, 80, 80, 255));
+            Raylib.DrawText(message, 220, 60, 20, new Color(255, 255, 255, 255));
+        }
+    }
+
+    private void DrawPlayer()
+    {
+        // Speler sprite (eenvoudige rechthoek)
+        Raylib.DrawRectangleRec(player.Position, player.IsPoisoned ? new Color(0, 117, 44, 255) : new Color(0, 121, 241, 255));
+        
+        // Schild indicator
+        if (player.IsShielded)
+        {
+            Raylib.DrawRectangleLinesEx(player.Position, 3, new Color(0, 255, 255, 255));
+        }
+
+        // Naam
+        Raylib.DrawText(player.Name, (int)player.Position.X, (int)player.Position.Y - 25, 16, new Color(255, 255, 255, 255));
+
+        // Health bar
+        DrawHealthBar(player.Position.X, player.Position.Y + player.Position.Height + 5, 
+                     player.Position.Width, player.HP, player.MaxHP, new Color(0, 228, 48, 255));
+    }
+
+    private void DrawZombie(Zombie zombie, bool selected)
+    {
+        if (zombie.IsDead) return;
+
+        // Zombie sprite
+        Raylib.DrawRectangleRec(zombie.Position, zombie.Color);
+
+        // Selectie indicator
+        if (selected)
+        {
+            Raylib.DrawRectangleLinesEx(zombie.Position, 3, new Color(255, 255, 0, 255));
+        }
+
+        // Naam
+        Raylib.DrawText(zombie.Name, (int)zombie.Position.X, (int)zombie.Position.Y - 25, 14, new Color(255, 255, 255, 255));
+
+        // Health bar
+        DrawHealthBar(zombie.Position.X, zombie.Position.Y + zombie.Position.Height + 5, 
+                     zombie.Position.Width, zombie.HP, zombie.MaxHP, new Color(230, 41, 55, 255));
+    }
+
+    private void DrawHealthBar(float x, float y, float width, int current, int max, Color color)
+    {
+        float barHeight = 8;
+        float filledWidth = max > 0 ? (width * current / max) : 0;
+
+        // Background
+        Raylib.DrawRectangle((int)x, (int)y, (int)width, (int)barHeight, new Color(80, 80, 80, 255));
+        // Fill
+        Raylib.DrawRectangle((int)x, (int)y, (int)filledWidth, (int)barHeight, color);
+        // Border
+        Raylib.DrawRectangleLines((int)x, (int)y, (int)width, (int)barHeight, new Color(255, 255, 255, 255));
+
+        // HP text
+        Raylib.DrawText($"{current}/{max}", (int)(x + width/2 - 20), (int)(y - 15), 12, new Color(255, 255, 255, 255));
+    }
+
+    private void DrawUIPanel()
+    {
+        // Panel achtergrond
+        Raylib.DrawRectangle(10, 500, 980, 180, new Color(80, 80, 80, 255));
+
+        // Speler stats
+        Raylib.DrawText($"Speler: {player.Name}", 20, 510, 18, new Color(255, 255, 255, 255));
+        Raylib.DrawText($"HP: {player.HP}/{player.MaxHP}", 20, 535, 16, new Color(0, 228, 48, 255));
+        Raylib.DrawText($"Aanval: {player.AttackDamage}", 20, 560, 16, new Color(255, 255, 255, 255));
+        Raylib.DrawText($"Score: {player.Score}", 20, 585, 16, new Color(255, 255, 0, 255));
+        Raylib.DrawText($"Kills: {player.KillCount}", 20, 610, 16, new Color(230, 41, 55, 255));
+
+        // Status effects
+        if (player.IsPoisoned)
+        {
+            Raylib.DrawText($"VERGIFTIGD ({player.PoisonTurns} beurten)", 200, 535, 14, new Color(0, 117, 44, 255));
+        }
+        if (player.IsShielded)
+        {
+            Raylib.DrawText("SCHILD ACTIEF", 200, 555, 14, new Color(0, 255, 255, 255));
+        }
+
+        // Inventory
+        Raylib.DrawText("Inventory:", 400, 510, 16, new Color(255, 255, 255, 255));
+        for (int i = 0; i < Math.Min(player.Inventory.Count, 8); i++)
+        {
+            Item item = player.Inventory[i];
+            Color itemColor = i == selectedItem ? new Color(255, 255, 0, 255) : item.Color;
+            Raylib.DrawRectangle(400 + i * 60, 540, 50, 30, itemColor);
+            Raylib.DrawText($"{i+1}", 415 + i * 60, 545, 12, new Color(255, 255, 255, 255));
+        }
+
+        // Acties
+        Raylib.DrawText("Acties:", 20, 640, 16, new Color(255, 255, 255, 255));
+        Raylib.DrawText("1: Aanval  2: Zware aanval  3: Genezen  4: Item", 20, 660, 14, new Color(130, 130, 130, 255));
+        Raylib.DrawText("Pijltjes: Selecteer zombie  Links/Rechts: Selecteer item", 400, 660, 14, new Color(130, 130, 130, 255));
+    }
+
+    private void DrawWaveReward()
+    {
+        Raylib.DrawText($"Wave {currentWave-1} Voltooid!", 300, 150, 40, new Color(255, 255, 0, 255));
+        Raylib.DrawText("Kies je beloning:", 350, 250, 24, new Color(255, 255, 255, 255));
+
+        string[] rewards = { "HP volledig herstellen", "Aanval +5", "Max HP +20", "Grote Potion" };
+        for (int i = 0; i < rewards.Length; i++)
+        {
+            Color color = i == selectedReward ? new Color(255, 255, 0, 255) : new Color(255, 255, 255, 255);
+            Raylib.DrawText($"{i+1}. {rewards[i]}", 350, 320 + i * 40, 18, color);
+        }
+
+        Raylib.DrawText("Pijltjes: Selecteren  Enter: Bevestigen", 300, 550, 16, new Color(130, 130, 130, 255));
+    }
+
+    private void DrawGameOver()
+    {
+        Raylib.DrawText("GAME OVER", 350, 200, 60, new Color(230, 41, 55, 255));
+        Raylib.DrawText($"Score: {player.Score}", 400, 300, 24, new Color(255, 255, 255, 255));
+        Raylib.DrawText($"Kills: {player.KillCount}", 400, 340, 24, new Color(255, 255, 255, 255));
+        Raylib.DrawText("Druk op SPATIE om terug naar menu", 250, 450, 18, new Color(130, 130, 130, 255));
+    }
+
+    private void DrawVictory()
+    {
+        Raylib.DrawText("GEWONNEN!", 350, 200, 60, new Color(255, 255, 0, 255));
+        Raylib.DrawText($"Score: {player.Score}", 400, 300, 24, new Color(255, 255, 255, 255));
+        Raylib.DrawText($"Kills: {player.KillCount}", 400, 340, 24, new Color(255, 255, 255, 255));
+        Raylib.DrawText("Druk op SPATIE om terug naar menu", 250, 450, 18, new Color(130, 130, 130, 255));
     }
 }
 
@@ -931,23 +911,7 @@ class Program
 {
     static void Main(string[] args)
     {
-        // Zet de console op voor unicode tekens (symbolen)
-        Console.OutputEncoding = System.Text.Encoding.UTF8;
-        Console.Title = "Zombie Survival";
-
-        bool playAgain = true;
-        while (playAgain)
-        {
-            Game game = new Game();
-            game.Run();
-
-            Console.WriteLine();
-            Display.WriteColored("Wil je opnieuw spelen? (j/n)", ConsoleColor.White);
-            Console.Write("> ");
-            string again = Console.ReadLine()?.Trim().ToLower();
-            playAgain = again == "j" || again == "ja" || again == "y" || again == "yes";
-        }
-
-        Display.WriteColored("Tot ziens, overlever. Blijf leven. 🧟", ConsoleColor.DarkGray);
+        VisualGame game = new VisualGame();
+        game.Run();
     }
 }

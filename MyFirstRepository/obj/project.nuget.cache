@@ -1,8 +1,10 @@
 {
   "version": 2,
-  "dgSpecHash": "YEdOJzUiiCw=",
+  "dgSpecHash": "UzKhPYZL9Nw=",
   "success": true,
   "projectFilePath": "C:\\Users\\s96960\\OneDrive - Campus Sint-Ursula Lier\\6AD\\Aplicatie en data beheer (mr Gys)\\Boek\\VersionControl\\MyFirstRepository\\MyFirstRepository\\MyFirstRepository.csproj",
-  "expectedPackageFiles": [],
+  "expectedPackageFiles": [
+    "C:\\Users\\s96960\\.nuget\\packages\\raylib-cs\\7.0.2\\raylib-cs.7.0.2.nupkg.sha512"
+  ],
   "logs": []
 }
